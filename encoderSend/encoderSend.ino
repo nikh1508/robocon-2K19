@@ -4,21 +4,21 @@
 void setup() {
   Serial.begin(115200);
   byte ADR = EEPROM.read(0);
-  Wire.begin(ADR);
-//  Serial.println("Started I2C AT : "+ String(ADR));
+  Wire.begin(ADR);//
+  //  Serial.println("Started I2C AT : "+ String(ADR));
   attachInterrupt(digitalPinToInterrupt(2), enc_isr, CHANGE);
   Wire.onRequest(send_enc);
   Wire.onReceive(reset);
-//  Serial.println("Started");
+  //  Serial.println("Started");
 }
 
-int count = 0, count_last = 0;
+long count = 0, count_last = 0;
 
 void loop() {
-  if (count != count_last) {
-    count_last = count;
-    Serial.println(count);
-  }
+  //    if (count != count_last) {
+  //      count_last = count;
+  //      Serial.println(count);
+  //    }
 }
 
 void enc_isr() {
@@ -27,17 +27,17 @@ void enc_isr() {
   else count--;
 }
 
-byte data[2];
+byte data[4];
 
 void send_enc() {
-  data[0] = count >> 8 ;
-  data[1] = count;
-  Wire.write(data, 2);
-  //    Serial.print(count);
-  //    Serial.print("\t");
-  //    Serial.print(data[0]);
-  //    Serial.print("\t");
-  //    Serial.println(data[1]);
+  for (int i = 0; i < 4; i++) {
+    data[i] = (count >> ((3 - i) * 8));
+    //    Serial.print(data[i]);
+    //    Serial.print("\t");
+  }
+  //  Serial.print(count);
+  //  Serial.println();
+  Wire.write(data, 4);
 }
 void reset() {
   //  Serial.println("here");

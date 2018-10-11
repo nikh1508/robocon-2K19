@@ -7,17 +7,20 @@ void setup() {
 
 constexpr int ENC[] = {0x07, 0x08};
 
-int encoderCount[2] = {0};
+long encoderCount[2] = {0}, lastEncoderCount[2] = {0};
 
 void readEncoder() {
-  byte lsb, msb;
+  byte recv;
   for (int i = 0 ; i < 2; i++) {
-    Wire.requestFrom(ENC[i], 2);
-    msb = Wire.read();
-    lsb = Wire.read();
-    encoderCount[i] = msb << 8 | lsb;
+    Wire.requestFrom(ENC[i], 4);
+    encoderCount[i] = 0;
+    for (int j = 0; j < 4; j++) {
+      recv = Wire.read();
+      encoderCount[i] = encoderCount[i] << 8 | recv;
+    }
   }
 }
+
 void resetEncoder() {
   for (int i = 0 ; i < 2; i++) {
     Wire.beginTransmission(ENC[i]);
@@ -32,8 +35,12 @@ void loop() {
     resetEncoder();
   }
   readEncoder();
-  Serial.print(encoderCount[0]);
-  Serial.print("\t");
-  Serial.println(encoderCount[1]);
+  if (encoderCount[0] != lastEncoderCount[0] || encoderCount[1] != lastEncoderCount[1]) {
+    Serial.print(encoderCount[0]);
+    Serial.print("\t");
+    Serial.println(encoderCount[1]);
+    lastEncoderCount[0] = encoderCount[0];
+    lastEncoderCount[1] = encoderCount[1];
+  }
   delay(10);
 }
