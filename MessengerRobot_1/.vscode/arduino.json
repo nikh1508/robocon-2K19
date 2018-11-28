@@ -1,0 +1,6 @@
+{
+    "sketch": "MessengerRobot_1.ino",
+    "board": "arduino:avr:mega",
+    "configuration": "cpu=atmega2560",
+    "port": "/dev/ttyACM1"
+}
