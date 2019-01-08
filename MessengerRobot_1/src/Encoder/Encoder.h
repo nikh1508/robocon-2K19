@@ -7,8 +7,8 @@
 constexpr int ENC[] = {0x07, 0x08};
 constexpr int SAMPLE_RATE = 10;
 constexpr int THETA_SAMPLE_RATE = 50;
-bool newTheta = false;
-double calculatedTheta = 0.0;
+bool newThetaXY = false;
+float calculatedThetaXY = 0.0;
 
 long encoderCount[2] = {0}, lastEncoderCount[2] = {0};
 
@@ -20,15 +20,30 @@ struct Coordinate
     float y;
     Coordinate()
     {
-        x = y = 0;
+        x = y = 0.0;
     }
 };
 
 void getCoordinates(Coordinate &var, float referenceAngle = 0.0)
 {
     readEncoder();
-    var.x = encoderCount[0] * cos(toRadian(45.0 - referenceAngle)) - encoderCount[1] * cos(toRadian(45.0 + referenceAngle));
-    var.y = encoderCount[0] * sin(toRadian(45.0 - referenceAngle)) + encoderCount[1] * sin(toRadian(45.0 + referenceAngle));
+    // var.x = encoderCount[0] * cos(toRadian(45.0 - referenceAngle)) - encoderCount[1] * cos(toRadian(45.0 + referenceAngle));
+    // var.y = encoderCount[0] * sin(toRadian(45.0 - referenceAngle)) + encoderCount[1] * sin(toRadian(45.0 + referenceAngle));
+    var.x = encoderCount[0];
+    var.y = encoderCount[1];
+}
+
+Coordinate addCoordinates(Coordinate a, Coordinate b)
+{
+    Coordinate c;
+    c.x = a.x + b.x;
+    c.y = a.y + b.y;
+    return c;
+}
+
+float getTangent(Coordinate P1, Coordinate P2)
+{
+    return toDegree(atan((P2.y - P1.y)/(P2.x - P1.x)));
 }
 
 void calcTheta(float referenceAngle = 0.0)
@@ -37,11 +52,22 @@ void calcTheta(float referenceAngle = 0.0)
     Coordinate now;
     getCoordinates(now, referenceAngle);
     float dx = now.x - lastCoordinate.x;
-    float dy = now.y = lastCoordinate.y;
-    if (dx > -0.01 && dx < 0.01)
-        calculatedTheta = 90.0;
+    float dy = now.y - lastCoordinate.y;
+    calculatedThetaXY = toDegree(atan(dy / dx));
+    if (dy >= 0)
+    {
+        if (calculatedThetaXY <= 0)
+            calculatedThetaXY += 180.0;
+    }
     else
-        calculatedTheta = toDegree(atan(dy / dx));
+    {
+        if (calculatedThetaXY >= 0)
+            calculatedThetaXY += 180.0;
+        else
+            calculatedThetaXY += 360.0;
+    }
+    //if (!isnan(calculatedThetaXY))
+       // debug_msg("NowX : " + String(now.x) + "\tNowY : " + String(now.y) + "\tLastX : " + String(lastCoordinate.x) + "\tLastY : " + String(lastCoordinate.y) + "\tdx : " + String(dx) + "\tdy : " + String(dy) + "\tdy/dx : " + String(dy / dx) + "\tR : " + String(sqrt(dx * dx + dy * dy)) + "\tTH : " + String(calculatedThetaXY));
     lastCoordinate = now;
 }
 
@@ -63,11 +89,13 @@ bool readEncoder()
             recv = Wire.read();
             encoderCount[i] = encoderCount[i] << 8 | recv;
         }
+        encoderCount[i] *= -1;
     }
+    // debug_msg("Enc_0 : " + String(encoderCount[0]) + "\tEnc_1 : " + String(encoderCount[1]));
     currentTime = millis();
     if ((currentTime - lastThetaCalc) > THETA_SAMPLE_RATE)
     {
-        newTheta = true;
+        newThetaXY = true;
         calcTheta();
         lastThetaCalc = currentTime;
     }
@@ -76,15 +104,19 @@ bool readEncoder()
 
 void resetEncoder()
 {
+    debug_msg("Sending reset command to Encoder");
     for (int i = 0; i < 2; i++)
     {
         Wire.beginTransmission(ENC[i]);
         Wire.write('r');
         Wire.endTransmission();
     }
+    debug_msg("Encoder Reset Complete");
+    readEncoder();
+    debug_msg("Encoder_0 = " + String(encoderCount[0]) + "\tEncoder_1 = " + String(encoderCount[1]));
 }
 
-void encoderDebug()
+void debugEncoder()
 {
     if (Serial.available())
     {

@@ -15,18 +15,18 @@ void debug_msg(String msg)
 
 float toDegree(float radian)
 {
-    return 0.0174533 * radian;
+    return 57.29578 * radian;
 }
 
 float toRadian(float degree)
 {
-    return 57.29578 * degree;
+    return 0.017453 * degree;
 }
 
 float angleDiff(float inp, float set)
 {
-    double tmp = abs(inp - set);
-    double diff = min(tmp, abs(360 - tmp));
+    float tmp = abs(inp - set);
+    float diff = min(tmp, abs(360 - tmp));
     if ((set + diff) != inp && (set - diff) != inp)
     {
         if ((inp + diff) >= 360)
@@ -70,13 +70,19 @@ void readBytes(uint8_t address, uint8_t subAddress, uint8_t count, uint8_t *dest
     }
 }
 
-double maxm(double a, double b)
+float maxm(float a, float b)
 {
     return (a > b) ? a : b;
 }
 
-double maxm(double a, double b, double c)
+float maxm(float a, float b, float c)
 {
     return maxm(max(a, b), c);
 }
+
+float map2(float val, float low_in, float high_in, float low_op, float high_op)
+{
+    return (((val - low_in) / (high_in - low_in)) * (high_op - low_op)) + low_op;
+}
+
 #endif
