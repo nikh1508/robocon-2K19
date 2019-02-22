@@ -1,7 +1,7 @@
 {
     "sketch": "Quadruped_Leg.ino",
-    "board": "esp32:esp32:esp32doit-devkit-v1",
-    "configuration": "FlashFreq=80,UploadSpeed=921600,DebugLevel=none",
+    "board": "stm32duino:STM32F1:genericSTM32F103C",
+    "configuration": "device_variant=STM32F103C8,upload_method=serialMethod,cpu_speed=speed_72mhz,opt=osstd",
     "port": "/dev/ttyUSB0",
     "output": "/home/nikh1508/Documents/ArduinoOutput"
 }

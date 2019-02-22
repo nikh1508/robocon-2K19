@@ -1,6 +1,6 @@
-/*Changes done in order to try and make the code compactible with ESP-32:
-    *portMux handles the shared memory in every Interrupt Variable.
-    *---DRAM_ATTR used for every INterrupt Variable (as suggested in the solution : https://github.com/espressif/arduino-esp32/issues/1907) 
+/*Changes done in order to try and make the code compactible with STM32(BluePill):
+    *Any Serial statement should not execute before Serial.begin() is executed in the setup()
+    *In case the above happens the code will come to halt after the Serial Statement.
 */
 #ifndef Leg_H
 #define Leg_H
@@ -10,11 +10,12 @@
 #include <Arduino.h>
 #include <PID_v1.h>
 
-#ifdef ESP_H
-#include <ESP32_Servo.h>
-#else
+// #ifdef ESP_H
+// #include <ESP32_Servo.h>
+// #else
+// #include <Servo.h>
+// #endif
 #include <Servo.h>
-#endif
 
 struct MotorWithEncoder
 {
@@ -40,7 +41,6 @@ class Leg
   int pawSwitch;
   int MAX_POWER;
 
-  portMUX_TYPE mux;
   volatile int hipCounter;
   volatile int kneeCounter;
   volatile bool hipPressed;
@@ -97,23 +97,24 @@ class Leg
 public:
   Leg(int instance, MotorWithEncoder _hip, MotorWithEncoder _knee, int _hipSwitch, int _kneeSwitch, int _pawSwitch, int max, const double *_hipCons, const double *_kneeCons) : hip(_hip), knee(_knee), hipSwitch(_hipSwitch), kneeSwitch(_kneeSwitch), pawSwitch(_pawSwitch), MAX_POWER(constrain(max, -100, 100)), Kp{_hipCons[0], _kneeCons[0]}, Ki{_hipCons[1], _kneeCons[1]}, Kd{_hipCons[2], _kneeCons[2]}
   {
-    Serial.begin(115200);
-    debug_msg("In Constructor");
-    mux = portMUX_INITIALIZER_UNLOCKED;
-    hipCounter = kneeCounter = 0;
-    setPoint[0] = setPoint[1] = 0.0;
-    PID _hipPID(&input[HIP], &output[HIP], &setPoint[HIP], 0.0, 0.0, 0.0, P_ON_M, DIRECT); //Destructor will be called for both of these PID objects once this Constructor Call is over
-    PID _kneePID(&input[KNEE], &output[KNEE], &setPoint[KNEE], 0.0, 0.0, 0.0, P_ON_M, DIRECT);
+    // Serial.begin(115200);
+    // debug_msg("In Constructor");
+    hipCounter = kneeCounter = 0;                                                  //Initializing the encoder counter variables
+    setPoint[0] = setPoint[1] = 0.0;                                               //The initial Setpoint for both the joints
+    PID _hipPID(&input[HIP], &output[HIP], &setPoint[HIP], 0.0, 0.0, 0.0, DIRECT); //Destructor will be called for both of these PID objects once this Constructor Call is over
+    PID _kneePID(&input[KNEE], &output[KNEE], &setPoint[KNEE], 0.0, 0.0, 0.0, DIRECT);
     hipPID = _hipPID;
     kneePID = _kneePID;
     initialize(instance);
   }
-  void writeMotor(int motor, int value);
-  void debug_msg(String msg);
-  void stopAll();
-  void autoHome();
-  int getEncoder(int enc);
-  void debugComp(bool switches, bool encoders);
+  void writeMotor(int motor, int value);        //This Func is used to write output signal to the Motor Driver
+  void debug_msg(String msg);                   //Debug Func
+  void stopAll();                               //To Stop all motors
+  void autoHome();                              //To initilize the home posotion of both the joints of the leg | Must Run once at start.
+  int getEncoder(int enc);                      //Returns the current encoder values.
+  void set(int joint, int value);               //To set the angle of joints by providing encoder Values
+  void run();                                   //This Func corrects the error in the angle with respect to the current setpoint. Needs to be called consistently in loop()
+  void debugComp(bool switches, bool encoders); //To Debug the Encoder and Switches Values
 
 #ifdef ESP_H
   void IRAM_ATTR isrHip();
@@ -122,11 +123,11 @@ public:
   void IRAM_ATTR isrKneeSwitch();
   void IRAM_ATTR isrPawSwitch();
 #else
-  void isrHip();
-  void isrKnee();
-  void isrHipSwitch();
-  void isrKneeSwitch();
-  void isrPawSwitch();
+  void isrHip();        //Hip Encoder Interrupt
+  void isrKnee();       //Knee Encoder Interrupt
+  void isrHipSwitch();  //Hip limit-switch Interrupt
+  void isrKneeSwitch(); //Knee limit-switch Interrupt
+  void isrPawSwitch();  //Paw limit-switch Interrupt
 #endif
 };
 
@@ -148,7 +149,7 @@ void Leg::writeMotor(int motor, int value)
 
 void Leg::initialize(int instance)
 {
-  debug_msg("Instance Initialization Started.");
+  // debug_msg("Instance Initialization Started.");
   MotorWithEncoder motors[] = {hip,
                                knee};
   for (MotorWithEncoder i : motors)
@@ -160,6 +161,9 @@ void Leg::initialize(int instance)
   pinMode(hipSwitch, INPUT_PULLDOWN);
   pinMode(kneeSwitch, INPUT_PULLDOWN);
   pinMode(pawSwitch, INPUT_PULLDOWN);
+  hipPressed = digitalRead(hipSwitch);
+  kneePressed = digitalRead(kneeSwitch);
+  pawPressed = digitalRead(pawSwitch);
   hipMotor.attach(hip.dataPin);
   kneeMotor.attach(knee.dataPin);
   stopAll();
@@ -182,7 +186,7 @@ void Leg::initialize(int instance)
   kneePID.SetOutputLimits(-100, 100);
   hipPID.SetMode(AUTOMATIC);
   kneePID.SetMode(AUTOMATIC);
-  debug_msg("Initialization Complete.");
+  // debug_msg("Initialization Complete.");
 }
 
 void Leg::debug_msg(String msg)
@@ -199,56 +203,74 @@ void Leg::stopAll()
 
 void Leg::autoHome()
 {
-  portENTER_CRITICAL(&mux);
-  bool kneeCurrent = kneePressed;
-  portEXIT_CRITICAL(&mux);
+  double input = 0.0;
+  double setpoint = 8.0;
+  double output = 0.0;
+  PID hipSpeed(&input, &output, &setpoint, 0.8, 5.0, 0.0, DIRECT);
+  hipSpeed.SetSampleTime(50);
+  hipSpeed.SetOutputLimits(-50, 50);
+  hipSpeed.SetMode(AUTOMATIC);
 
-  while (!kneeCurrent)
+  long lastCalculated = millis();
+  int lastEncCount = getEncoder(HIP);
+  while (!hipPressed)
   {
-    portENTER_CRITICAL(&mux);
-    kneeCurrent = kneePressed;
-    portEXIT_CRITICAL(&mux);
+    if (millis() - lastCalculated > 50)
+    {
+      lastCalculated = millis();
+      int enc = getEncoder(HIP);
+      input = enc - lastEncCount;
+      lastEncCount = enc;
+      hipSpeed.Compute();
+    }
+    writeMotor(HIP, 10 + output);
+  }
+  writeMotor(HIP, 0);
+  Serial.println("here");
+  delay(500);
+  while (!kneePressed)
+  {
     writeMotor(KNEE, 10);
   }
   writeMotor(KNEE, 0);
-  delay(500);
-
-  portENTER_CRITICAL(&mux);
-  bool hipCurrent = hipPressed;
-  portEXIT_CRITICAL(&mux);
-
-  while (!hipCurrent)
-  {
-    portENTER_CRITICAL(&mux);
-    bool hipCurrent = hipPressed;
-    portEXIT_CRITICAL(&mux);
-    writeMotor(HIP, 10);
-  }
-  writeMotor(HIP, 0);
 }
 
 int Leg::getEncoder(int enc)
 {
-  int toReturn;
   switch (enc)
   {
   case HIP:
-    portENTER_CRITICAL(&mux);
-    toReturn = hipCounter;
-    portEXIT_CRITICAL(&mux);
+    return hipCounter;
     break;
 
   case KNEE:
-    portENTER_CRITICAL(&mux);
-    toReturn = kneeCounter;
-    portEXIT_CRITICAL(&mux);
+    return kneeCounter;
     break;
 
   default:
     return -1;
     break;
   }
-  return toReturn;
+}
+
+void Leg::set(int joint, int value)
+{
+  setPoint[joint] = value;
+}
+
+void Leg::run()
+{
+  input[HIP] = getEncoder(HIP);
+  input[KNEE] = getEncoder(KNEE);
+  hipPID.Compute();
+  kneePID.Compute();
+  writeMotor(HIP, output[HIP]);
+  writeMotor(KNEE, output[KNEE]);
+  Serial.print(setPoint[KNEE]);
+  Serial.print("\t");
+  Serial.print(input[KNEE]);
+  Serial.print("\t");
+  Serial.println(output[KNEE]);
 }
 
 void Leg::debugComp(bool switches, bool encoders)
@@ -256,9 +278,7 @@ void Leg::debugComp(bool switches, bool encoders)
   String msg = "";
   if (switches)
   {
-    portENTER_CRITICAL(&mux);
     msg += String(hipPressed) + "\t" + String(kneePressed) + "\t" + String(pawPressed) + "\t";
-    portEXIT_CRITICAL(&mux);
   }
   if (encoders)
     msg += String(getEncoder(HIP)) + "\t" + String(getEncoder(KNEE));
@@ -266,7 +286,7 @@ void Leg::debugComp(bool switches, bool encoders)
 }
 
 ////  Interrupt Subroutines   ////
-void IRAM_ATTR Leg::isrHip()
+void Leg::isrHip()
 {
   static uint8_t lastEncoded = 0;
   uint8_t MSB = digitalRead(hip.enc_1);
@@ -275,20 +295,16 @@ void IRAM_ATTR Leg::isrHip()
   int sum = (lastEncoded << 2) | encoded;
   if (sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011)
   {
-    portENTER_CRITICAL(&mux);
     hipCounter++;
-    portEXIT_CRITICAL(&mux);
   }
   if (sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000)
   {
-    portENTER_CRITICAL(&mux);
     hipCounter--;
-    portEXIT_CRITICAL(&mux);
   }
   lastEncoded = encoded;
 }
 
-void IRAM_ATTR Leg::isrKnee()
+void Leg::isrKnee()
 {
   static uint8_t lastEncoded = 0;
   uint8_t MSB = digitalRead(knee.enc_1);
@@ -297,42 +313,32 @@ void IRAM_ATTR Leg::isrKnee()
   int sum = (lastEncoded << 2) | encoded;
   if (sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011)
   {
-    portENTER_CRITICAL(&mux);
     kneeCounter++;
-    portEXIT_CRITICAL(&mux);
   }
   if (sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000)
   {
-    portENTER_CRITICAL(&mux);
     kneeCounter--;
-    portEXIT_CRITICAL(&mux);
   }
   lastEncoded = encoded;
 }
 
-void IRAM_ATTR Leg::isrHipSwitch()
+void Leg::isrHipSwitch()
 {
-  portENTER_CRITICAL(&mux);
   hipPressed = digitalRead(hipSwitch);
   if (hipPressed)
     hipCounter = 0;
-  portEXIT_CRITICAL(&mux);
 }
 
-void IRAM_ATTR Leg::isrKneeSwitch()
+void Leg::isrKneeSwitch()
 {
-  portENTER_CRITICAL(&mux);
   kneePressed = digitalRead(kneeSwitch);
   if (kneePressed)
     kneeCounter = 0;
-  portEXIT_CRITICAL(&mux);
 }
 
-void IRAM_ATTR Leg::isrPawSwitch()
+void Leg::isrPawSwitch()
 {
-  portENTER_CRITICAL(&mux);
   pawPressed = digitalRead(pawSwitch);
-  portEXIT_CRITICAL(&mux);
 }
 ////  End of Interrupt Subroutines   ////
 #endif

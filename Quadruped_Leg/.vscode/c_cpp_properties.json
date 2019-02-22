@@ -3,6 +3,8 @@
         {
             "name": "Linux",
             "includePath": [
+                "/home/nikh1508/.arduino15/packages/stm32duino/tools/**",
+                "/home/nikh1508/.arduino15/packages/stm32duino/hardware/STM32F1/2018.12.3/**",
                 "/home/nikh1508/.arduino15/packages/esp32/tools/**",
                 "/home/nikh1508/.arduino15/packages/esp32/hardware/esp32/1.0.1/**"
             ],
