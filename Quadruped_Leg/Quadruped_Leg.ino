@@ -10,7 +10,7 @@ External Libraries Required:
 constexpr MotorWithEncoder leg0_hip{PB9, PB13, PB14}; //dataPin | enc_1 | enc_2
 constexpr MotorWithEncoder leg0_knee{PB8, PA12, PA15};
 
-constexpr double hipCons[] = {0.0, 0.0, 0.0};
-constexpr double kneeCons[] = {0.5, 0.0, 0.0};
+constexpr double hipCons[] = {0.3, 0.3, 0.0};
+constexpr double kneeCons[] = {0.2, 0.08, 0.0};
 
-Leg leg0(0, leg0_hip, leg0_knee, PB6, PB7, PA2, 50, hipCons, kneeCons); // HIP_MOTOR | KNEE MOTOR | HIP_SWITCH | KNEE SWITCH | MAX_POWER | Hip PID constants | Knee PID Constants
+Leg leg0(0, leg0_hip, leg0_knee, PB6, PB7, PA2, 50, hipCons, kneeCons); // HIP_MOTOR | KNEE MOTOR | HIP_SWITCH | KNEE SWITCH | MAX_POWER | Hip PID constants | Knee PID Constantsp'

@@ -2,7 +2,7 @@ bool autoHome = false;
 
 void loop()
 {
-    // leg0.debugComp(true, true);
+     leg0.debugComp(true, true);
     // leg0.writeMotor(HIP, -10);
     // leg0.writeMotor(KNEE, -10);
     if (autoHome)

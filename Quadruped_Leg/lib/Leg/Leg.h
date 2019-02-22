@@ -110,7 +110,7 @@ public:
   void writeMotor(int motor, int value);        //This Func is used to write output signal to the Motor Driver
   void debug_msg(String msg);                   //Debug Func
   void stopAll();                               //To Stop all motors
-  void autoHome();                              //To initilize the home posotion of both the joints of the leg | Must Run once at start.
+  void autoHome();                              //To initilize the home posotion of both the joints of the leg | Must  once at start.
   int getEncoder(int enc);                      //Returns the current encoder values.
   void set(int joint, int value);               //To set the angle of joints by providing encoder Values
   void run();                                   //This Func corrects the error in the angle with respect to the current setpoint. Needs to be called consistently in loop()
@@ -223,7 +223,7 @@ void Leg::autoHome()
       lastEncCount = enc;
       hipSpeed.Compute();
     }
-    writeMotor(HIP, 10 + output);
+    writeMotor(HIP, 15 + output);
   }
   writeMotor(HIP, 0);
   Serial.println("here");
@@ -233,6 +233,7 @@ void Leg::autoHome()
     writeMotor(KNEE, 10);
   }
   writeMotor(KNEE, 0);
+  setPoint[HIP]=getEncoder(HIP);
 }
 
 int Leg::getEncoder(int enc)
@@ -260,17 +261,19 @@ void Leg::set(int joint, int value)
 
 void Leg::run()
 {
+ // setPoint[HIP]=-160;
+ 
   input[HIP] = getEncoder(HIP);
   input[KNEE] = getEncoder(KNEE);
   hipPID.Compute();
   kneePID.Compute();
   writeMotor(HIP, output[HIP]);
   writeMotor(KNEE, output[KNEE]);
-  Serial.print(setPoint[KNEE]);
+  Serial.print(setPoint[HIP]);
   Serial.print("\t");
-  Serial.print(input[KNEE]);
+  Serial.print(input[HIP]);
   Serial.print("\t");
-  Serial.println(output[KNEE]);
+  Serial.println(output[HIP]);
 }
 
 void Leg::debugComp(bool switches, bool encoders)
@@ -281,8 +284,9 @@ void Leg::debugComp(bool switches, bool encoders)
     msg += String(hipPressed) + "\t" + String(kneePressed) + "\t" + String(pawPressed) + "\t";
   }
   if (encoders)
-    msg += String(getEncoder(HIP)) + "\t" + String(getEncoder(KNEE));
+    msg += String(getEncoder(HIP)) + "\t" + String(getEncoder(KNEE)) + "\t" + String(output[HIP]);
   debug_msg(msg);
+  
 }
 
 ////  Interrupt Subroutines   ////
