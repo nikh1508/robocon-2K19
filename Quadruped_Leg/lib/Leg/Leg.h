@@ -223,7 +223,7 @@ void Leg::autoHome()
       lastEncCount = enc;
       hipSpeed.Compute();
     }
-    writeMotor(HIP, 15 + output);
+    writeMotor(HIP, 20 + output);
   }
   writeMotor(HIP, 0);
   Serial.println("here");
